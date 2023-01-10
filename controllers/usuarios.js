@@ -2,17 +2,30 @@ const { response, request } = require('express');
 const Usuario = require('../models/usuario');
 const bcryptjs = require('bcryptjs');
 
-const usuariosGet = (req = request, res = response) => {
+const usuariosGet = async (req = request, res = response) => {
+    // const { q, nombre = 'No name', apikey, page = 1, limit } = req.query;
 
-    const { q, nombre = 'No name', apikey, page = 1, limit } = req.query;
+    const { limite = 5, desde = 0 } = req.query;
+    const query = { estado: true };
+
+    if (isNaN(limite) || isNaN(desde)) {
+        return res.status(400).json({
+            msg: 'No es un numero'
+        });
+    }
+
+    const [total, usuarios] = await Promise.all([
+        Usuario.countDocuments(query),
+        Usuario.find(query)
+            .skip(Number(desde))
+            .limit(Number(limite)) //Se tendria que transformar a Number() pero funcion asi
+
+    ]);
+
 
     res.json({
-        msg: 'get API - controlador',
-        q,
-        nombre,
-        apikey,
-        page,
-        limit
+        total,
+        usuari
     });
 }
 
@@ -25,13 +38,6 @@ const usuariosPost = async (req, res = response) => {
 
 
     // Verificar correos duplicados
-    const emailDuplicado = await Usuario.findOne({ correo });
-    if (emailDuplicado) {
-        return res.status(400).json({
-            msg: "El correo ya existe"
-        })
-    }
-
 
 
     // Encriptar Paswword
@@ -41,19 +47,23 @@ const usuariosPost = async (req, res = response) => {
 
     await usuario.save();
     res.json({
-        msg: 'post API - usuariosPost',
         usuario
     });
 }
 
-const usuariosPut = (req, res = response) => {
+const usuariosPut = async (req, res = response) => {
 
     const { id } = req.params;
+    const { password, google, correo, ...resto } = req.body;
 
-    res.json({
-        msg: 'put API - usuariosPut',
-        id
-    });
+    if (password) {
+        const salt = bcryptjs.genSaltSync();
+        resto.password = bcryptjs.hashSync(password, salt);
+    }
+
+    const usuario = await Usuario.findByIdAndUpdate(id, resto)
+
+    res.json(usuario);
 }
 
 const usuariosPatch = (req, res = response) => {
@@ -62,9 +72,12 @@ const usuariosPatch = (req, res = response) => {
     });
 }
 
-const usuariosDelete = (req, res = response) => {
+const usuariosDelete = async (req, res = response) => {
+
+    const { id } = req.params;
+    const usuario = await Usuario.findByIdAndUpdate(id, {estado:false});
     res.json({
-        msg: 'delete API - usuariosDelete'
+        usuario
     });
 }
 
